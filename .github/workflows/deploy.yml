@@ -1,0 +1,50 @@
+name: Build & Deploy Contoso Real-Estate to Azure Static Web Apps
+
+on:
+  push:
+    branches: [ main ]          # deploy every commit on main
+  workflow_dispatch:            # allow manual runs
+
+permissions:
+  contents: read                # checkout
+  id-token: write               # future OIDC auth (optional)
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    concurrency:                # only one live deploy at a time
+      group: swa-${{ github.ref }}
+      cancel-in-progress: true
+
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4   # latest GA release :contentReference[oaicite:3]{index=3}
+
+      - name: Set up Node LTS
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'        # match project’s .nvmrc
+
+      - name: Install dependencies
+        run: npm ci --prefix frontend
+
+      - name: Build front-end
+        run: npm run build --prefix frontend   # outputs to frontend/build
+
+      # --- If you have an Azure Functions API --------------------------------
+      - name: Install API deps
+        run: npm ci --prefix api
+
+      # -----------------------------------------------------------------------
+
+      - name: Deploy to Azure Static Web Apps
+        uses: Azure/static-web-apps-deploy@v1   # official action :contentReference[oaicite:4]{index=4}
+        with:
+          azure_static_web_apps_api_token: ${{ secrets.SWA_TOKEN }}
+          action: "upload"
+          ###### Paths relative to repo root ######
+          app_location: "frontend/build"        # static assets
+          api_location: "api"                  # remove if no API
+          output_location: ""                  # not needed for React build
+          ###### Optional: environment name ######
+          # environment: "production"
