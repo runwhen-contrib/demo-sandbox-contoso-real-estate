@@ -1,46 +1,44 @@
-# .github/workflows/deploy-swa.yml
-name: Build & Deploy Contoso Real-Estate
-
+name: Build & Deploy Contoso (explicit build)
 on:
-  push:    { branches: [main] }
+  push:
+    branches: [main]
   workflow_dispatch:
 
-permissions:
-  contents: read
-  id-token: write         # for future OIDC if you enable it
-
 jobs:
-  build-and-deploy:
+  build-deploy:
     runs-on: ubuntu-latest
-    concurrency:
-      group: swa-${{ github.ref }}
-      cancel-in-progress: true
-
     steps:
-      - uses: actions/checkout@v4            # GA checkout action :contentReference[oaicite:1]{index=1}
-      - uses: actions/setup-node@v4          # GA node action :contentReference[oaicite:2]{index=2}
-        with:
-          node-version: 18
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 18 }
 
       # ---------- FRONT-END ----------
-      - name: Install front-end deps
+      - name: Install FE deps (handles lock-file or no lock-file)
         run: |
-          npm install --prefix src/frontend
-      - name: Build front-end
-        run: |
-          npm run build --prefix src/frontend   # outputs to src/frontend/build
+          FE_DIR="src/frontend"     # <— CHANGE IF YOUR PATH DIFFERS
+          if [ -f "$FE_DIR/package-lock.json" ]; then
+            npm ci --prefix "$FE_DIR"
+          else
+            npm install --prefix "$FE_DIR"
+          fi
+      - name: Build FE
+        run: npm run build --prefix src/frontend
 
-      # ---------- FUNCTIONS API ----------
+      # ---------- API ----------
       - name: Install API deps
         run: |
-          npm install --prefix src/api
+          API_DIR="api"             # CHANGE if your Functions live elsewhere
+          if [ -f "$API_DIR/package-lock.json" ]; then
+            npm ci --prefix "$API_DIR"
+          else
+            npm install --prefix "$API_DIR"
+          fi
 
       # ---------- DEPLOY ----------
-      - name: Deploy to Azure Static Web Apps
-        uses: Azure/static-web-apps-deploy@v1   # official action :contentReference[oaicite:3]{index=3}
+      - uses: Azure/static-web-apps-deploy@v1
         with:
           azure_static_web_apps_api_token: ${{ secrets.SWA_TOKEN }}
           action: upload
-          app_location: "src/frontend/build"
-          api_location: "src/api"
+          app_location: "src/frontend/build"   # must match the folder you built
+          api_location: "api"
           output_location: ""
