@@ -142,7 +142,7 @@ module apim './core/gateway/apim.bicep' = if (useAPIM) {
     location: location
     tags: tags
     applicationInsightsName: monitoring.outputs.applicationInsightsName
-    sku: 'Developer'
+    sku: 'Consumption'
   }
 }
 
@@ -441,4 +441,8 @@ output STRAPI_DATABASE_PASSWORD string = cmsDatabasePassword
 
 
 output SERVICE_WEBPUBSUB_NAME string = notifications.outputs.SERVICE_WEBPUBSUB_NAME
-output SERVICE_WEBPUBSUB_URI string = notifications.outputs.SERVICE_WEBPUBSUB_NAME
+output SERVICE_WEBPUBSUB_URI string = notificationsBackend.outputs.SERVICE_WEBPUBSUB_URI
+
+// Additional outputs for portal predeploy script
+output SERVICE_WEB_PUB_SUB_URL string = notificationsBackend.outputs.SERVICE_WEBPUBSUB_URI  
+output SERVICE_WEB_PUB_SUB_PATH string = '/eventhandler'

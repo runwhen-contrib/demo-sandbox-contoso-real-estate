@@ -5,9 +5,11 @@ param useAPIM bool
 param portalName string
 param apiServiceName string
 
+// Temporarily disabled to resolve backend linking conflicts
+/*
 resource portalApimProperties 'Microsoft.Web/staticSites/linkedBackends@2022-03-01' = {
   parent: portal
-  name: name
+  name: 'default'
 
   #disable-next-line BCP187
   location: location
@@ -19,6 +21,7 @@ resource portalApimProperties 'Microsoft.Web/staticSites/linkedBackends@2022-03-
     region: useAPIM ? null : location // backend region is mandatory for linked Function Apps
   }
 }
+*/
 
 resource portal 'Microsoft.Web/staticSites@2022-03-01' existing = {
   name: portalName

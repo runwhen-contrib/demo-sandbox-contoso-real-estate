@@ -92,11 +92,11 @@ resource apiDiagnostics 'Microsoft.ApiManagement/service/apis/diagnostics@2021-1
 }
 
 resource apimProduct 'Microsoft.ApiManagement/service/products@2022-08-01' = {
-  name: 'apim-product'
+  name: 'real-estate-stripe-2024'
   parent: apimService
   properties: {
-    description: 'Contoso public APIs'
-    displayName: 'Contoso public APIs'
+    description: 'Contoso Real Estate Stripe Integration'
+    displayName: 'Contoso Real Estate Stripe'
     state: 'published'
     subscriptionRequired: false
   }

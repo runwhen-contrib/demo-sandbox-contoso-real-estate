@@ -55,6 +55,9 @@
     },
     "storageContainerName": {
       "value": "${STORAGE_CONTAINER_NAME=strapi-media}"
+    },
+    "useAPIM": {
+      "value": "${USE_APIM=false}"
     }
   }
 }

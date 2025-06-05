@@ -17,7 +17,7 @@ module app '../core/host/container-app.bicep' = {
   params: {
     name: name
     location: location
-    tags: union(tags, { 'azd-service-name': '${serviceName}-container-app' })
+    tags: union(tags, { 'azd-service-name': serviceName })
     containerAppsEnvironmentName: containerAppsEnvironmentName
     containerRegistryName: containerRegistryName
     containerCpuCoreCount: '1.0'
