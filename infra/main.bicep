@@ -15,10 +15,6 @@ param principalId string = ''
 param apimServiceName string = ''
 param applicationInsightsDashboardName string = ''
 param applicationInsightsName string = ''
-param blogContainerAppName string = ''
-param cmsContainerAppName string = ''
-param containerAppsEnvironmentName string = ''
-param containerRegistryName string = ''
 param cosmosAccountName string = ''
 param cosmosDatabaseName string = ''
 param keyVaultName string = ''
@@ -26,42 +22,7 @@ param logAnalyticsName string = ''
 param webServiceName string = ''
 param storageAccountName string = ''
 param storageContainerName string = ''
-param stripeContainerAppName string = ''
-param apiServiceName string = ''
-param appServicePlanName string = ''
-param eventGridName string = ''
-param cmsImageName string = ''
-param blogImageName string = ''
-param notificationsServiceName string = ''
-param notificationsImageName string = ''
-param stripeImageName string = ''
 param stripeServiceUrl string = ''
-
-@secure()
-param appKeys string
-@secure()
-param apiTokenSalt string
-
-@secure()
-param jwtSecret string
-
-@secure()
-param adminJwtSecret string
-
-param cmsDatabaseName string = 'strapi'
-param cmsDatabaseUser string = 'strapi'
-param cmsDatabaseServerName string = ''
-param cmsDatabasePort string = '5432'
-@secure()
-param cmsDatabasePassword string
-
-param stripePublicKey string
-
-@secure()
-param stripeSecretKey string
-
-@secure()
-param stripeWebhookSecret string
 
 // Set to true to use Azure API Management
 @description('Flag to use Azure API Management to mediate the calls between the Web frontend and the backend API')
@@ -101,19 +62,6 @@ module monitoring './core/monitor/monitoring.bicep' = {
     logAnalyticsName: !empty(logAnalyticsName) ? logAnalyticsName : '${abbrs.operationalInsightsWorkspaces}${resourceToken}'
     applicationInsightsName: !empty(applicationInsightsName) ? applicationInsightsName : '${abbrs.insightsComponents}${resourceToken}'
     applicationInsightsDashboardName: !empty(applicationInsightsDashboardName) ? applicationInsightsDashboardName : '${abbrs.portalDashboards}${resourceToken}'
-  }
-}
-
-// Container apps host (including container registry)
-module containerApps './core/host/container-apps.bicep' = {
-  name: 'container-apps'
-  scope: rg
-  params: {
-    name: 'app'
-    containerAppsEnvironmentName: !empty(containerAppsEnvironmentName) ? containerAppsEnvironmentName : '${abbrs.appManagedEnvironments}${resourceToken}'
-    containerRegistryName: !empty(containerRegistryName) ? containerRegistryName : '${abbrs.containerRegistryRegistries}${resourceToken}'
-    location: location
-    logAnalyticsWorkspaceName: monitoring.outputs.logAnalyticsWorkspaceName
   }
 }
 
@@ -172,7 +120,7 @@ module apimStripe './app/apim-stripe.bicep' = if (useAPIM) {
     apiDescription: 'This is the Stripe integration server for Contoso Real Estate company.'
     apiPath: 'stripe'
     webFrontendUrl: portal.outputs.SERVICE_WEB_URI
-    apiBackendUrl: api.outputs.SERVICE_API_URI
+    apiBackendUrl: webApps.outputs.stripeWebAppUri
   }
 }
 
@@ -194,12 +142,12 @@ module portalBackend './app/portal-backend.bicep' = {
   name: 'portal-apim'
   scope: rg
   params: {
-    name: useAPIM ? apim.outputs.apimServiceName : api.outputs.SERVICE_API_NAME
+    name: useAPIM ? apim.outputs.apimServiceName : webApps.outputs.blogWebAppName
     location: location
     tags: tags
     useAPIM: useAPIM
     portalName: portal.outputs.SERVICE_WEB_NAME
-    apiServiceName: api.outputs.SERVICE_API_NAME
+    apiServiceName: webApps.outputs.blogWebAppName
   }
 }
 
@@ -209,24 +157,25 @@ module notifications 'app/notifications.bicep' = {
   name: 'notifications'
   scope: rg
   params: {
-    name: !empty(notificationsServiceName) ? notificationsServiceName :  '${abbrs.appContainerApps}web-${resourceToken}'
+    name: !empty(notificationsServiceName) ? notificationsServiceName : '${abbrs.webSitesAppService}web-${resourceToken}'
     location: location
     tags: tags
   }
 }
 
 module notificationsBackend 'app/notifications-backend.bicep' = {
-  name: 'notifications-api'
+  name: 'notifications-backend'
   scope: rg
   params: {
-    name: !empty(notificationsServiceName) ? notificationsServiceName :  '${abbrs.appContainerApps}api-${resourceToken}'
+    name: !empty(notificationsServiceName) ? notificationsServiceName : '${abbrs.webSitesAppService}api-${resourceToken}'
     location: location
     tags: tags
+    containerRegistryName: containerRegistryName
+    containerAppsEnvironmentName: containerAppsEnvironment.outputs.name
+    serviceName: notificationsServiceName
     notificationsImageName: notificationsImageName
     applicationInsightsName: monitoring.outputs.applicationInsightsName
     notificationsServiceName: notifications.outputs.SERVICE_WEBPUBSUB_NAME
-    containerAppsEnvironmentName: !empty(containerAppsEnvironmentName) ? containerAppsEnvironmentName : '${abbrs.appManagedEnvironments}${resourceToken}'
-    containerRegistryName: !empty(containerRegistryName) ? containerRegistryName : '${abbrs.containerRegistryRegistries}${resourceToken}'
     keyVaultName: keyVault.outputs.name
   }
 }
@@ -246,6 +195,7 @@ module cosmos './app/db.bicep' = {
 
 /////////// Portal API ///////////
 
+// Create App Service Plan for Web Apps
 module appServicePlan './core/host/appserviceplan.bicep' = {
   name: 'appserviceplan'
   scope: rg
@@ -253,13 +203,59 @@ module appServicePlan './core/host/appserviceplan.bicep' = {
     name: !empty(appServicePlanName) ? appServicePlanName : '${abbrs.webServerFarms}${resourceToken}'
     location: location
     tags: tags
+    kind: 'linux'
+    reserved: true
     sku: {
-      name: 'Y1'
-      tier: 'Dynamic'
+      name: 'S1'
+      tier: 'Standard'
+      size: 'S1'
+      family: 'S'
+      capacity: 1
     }
   }
 }
 
+// Create Web Apps (Blog, CMS, Stripe)
+module webApps './core/host/webapps.bicep' = {
+  name: 'webapps'
+  scope: rg
+  params: {
+    name: !empty(webServiceName) ? webServiceName : '${abbrs.webSitesAppService}${resourceToken}'
+    location: location
+    tags: tags
+    appServicePlanId: appServicePlan.outputs.id
+    appInsightsName: monitoring.outputs.applicationInsightsName
+    appInsightsKey: monitoring.outputs.applicationInsightsInstrumentationKey
+    keyVaultName: keyVault.outputs.name
+  }
+}
+
+// Configure auto-scaling for the App Service Plan
+module autoscale './core/host/autoscale.bicep' = {
+  name: 'autoscale'
+  scope: rg
+  params: {
+    name: 'app'
+    location: location
+    tags: tags
+    appServicePlanId: appServicePlan.outputs.id
+    appServicePlanName: appServicePlan.outputs.id
+  }
+}
+
+// Restore required parameters
+param notificationsServiceName string = ''
+param notificationsImageName string = ''
+param appServicePlanName string = ''
+param apiServiceName string = ''
+param cmsDatabaseServerName string = ''
+param cmsDatabaseUser string = ''
+@secure()
+param cmsDatabasePassword string
+param cmsDatabaseName string = 'cms'
+param eventGridName string = ''
+
+// Update api module's appSettings to use these parameters
 module api './app/api.bicep' = {
   name: 'api'
   scope: rg
@@ -282,43 +278,18 @@ module api './app/api.bicep' = {
       STRAPI_DATABASE_USERNAME: cmsDatabaseUser
       STRAPI_DATABASE_PASSWORD: cmsDatabasePassword
       STRAPI_DATABASE_HOST: cmsDB.outputs.POSTGRES_DOMAIN_NAME
-      STRAPI_DATABASE_PORT: cmsDatabasePort
+      STRAPI_DATABASE_PORT: '5432'
       STRAPI_DATABASE_SSL: 'true'
     }
-
-    // Note:  this property is passed as params to avoid circular dependency (see api.bicep)
     stripeServiceUrl: stripeServiceUrl
   }
 }
 
 /////////// CMS ///////////
 
-module cms './app/cms.bicep' = {
-  name: 'cms'
-  scope: rg
-  params: {
-    name: !empty(cmsContainerAppName) ? cmsContainerAppName : '${abbrs.appContainerApps}cms-${resourceToken}'
-    location: location
-    cmsImageName: cmsImageName
-    applicationInsightsName: monitoring.outputs.applicationInsightsName
-    containerAppsEnvironmentName: !empty(containerAppsEnvironmentName) ? containerAppsEnvironmentName : '${abbrs.appManagedEnvironments}${resourceToken}'
-    containerRegistryName: !empty(containerRegistryName) ? containerRegistryName : '${abbrs.containerRegistryRegistries}${resourceToken}'
-    databaseHost: cmsDB.outputs.POSTGRES_DOMAIN_NAME
-    databaseName: cmsDatabaseName
-    databaseUsername: cmsDatabaseUser
-    databasePassword: cmsDatabasePassword
-
-    appKeys: appKeys
-    apiTokenSalt: apiTokenSalt
-    jwtSecret: jwtSecret
-    adminJwtSecret: adminJwtSecret
-
-    storageAccountName: storageAccount.outputs.name
-    storageContainerName: storageContainerName
-
-    keyVaultName: keyVault.outputs.name
-  }
-}
+// Remove or comment out the old container app modules for blog, cms, and stripe
+// module cms './app/cms.bicep' = { ... }
+// module stripe './app/stripe.bicep' = { ... }
 
 // // The cms database
 module cmsDB './core/database/postgresql/flexibleserver.bicep' = {
@@ -346,41 +317,13 @@ module cmsDB './core/database/postgresql/flexibleserver.bicep' = {
 
 /////////// Blog ///////////
 
-module blog './app/blog.bicep' = {
-  name: 'blog'
-  scope: rg
-  params: {
-    name: !empty(blogContainerAppName) ? blogContainerAppName : '${abbrs.appContainerApps}blog-${resourceToken}'
-    blogImageName: blogImageName
-    location: location
-    applicationInsightsName: monitoring.outputs.applicationInsightsName
-    containerAppsEnvironmentName: !empty(containerAppsEnvironmentName) ? containerAppsEnvironmentName : '${abbrs.appManagedEnvironments}${resourceToken}'
-    containerRegistryName: !empty(containerRegistryName) ? containerRegistryName : '${abbrs.containerRegistryRegistries}${resourceToken}'
-    cmsUrl: cms.outputs.SERVICE_CMS_URI
-    portalUrl: portal.outputs.SERVICE_WEB_URI
-    keyVaultName: keyVault.outputs.name
-  }
-}
+// Remove or comment out the old container app modules for blog, cms, and stripe
+// module blog './app/blog.bicep' = { ... }
 
 /////////// Payment API ///////////
 
-module stripe './app/stripe.bicep' = {
-  name: 'stripe'
-  scope: rg
-  params: {
-    name: !empty(stripeContainerAppName) ? stripeContainerAppName : '${abbrs.appContainerApps}stripe-${resourceToken}'
-    location: location
-    stripeImageName: stripeImageName
-    applicationInsightsName: monitoring.outputs.applicationInsightsName
-    containerAppsEnvironmentName: !empty(containerAppsEnvironmentName) ? containerAppsEnvironmentName : '${abbrs.appManagedEnvironments}${resourceToken}'
-    containerRegistryName: !empty(containerRegistryName) ? containerRegistryName : '${abbrs.containerRegistryRegistries}${resourceToken}'
-    stripeSecretKey: stripeSecretKey
-    stripePublicKey: stripePublicKey
-    stripeWebhookSecret: stripeWebhookSecret
-    apiUrl: useAPIM ? api.outputs.SERVICE_API_URI : portal.outputs.SERVICE_WEB_URI
-    portalUrl: portal.outputs.SERVICE_WEB_URI
-  }
-}
+// Remove or comment out the old container app modules for blog, cms, and stripe
+// module stripe './app/stripe.bicep' = { ... }
 
 module eventGrid './app/events.bicep' = {
   name: 'events'
@@ -393,6 +336,32 @@ module eventGrid './app/events.bicep' = {
   }
 }
 
+// Add container registry module before the API module
+module containerRegistry './core/host/container-registry.bicep' = {
+  name: 'container-registry'
+  scope: rg
+  params: {
+    name: '${abbrs.containerRegistryRegistries}${resourceToken}'
+    location: location
+    tags: tags
+  }
+}
+
+// Update containerRegistryName to use the output from container registry
+var containerRegistryName = containerRegistry.outputs.name
+
+// Add Container Apps environment for notifications backend
+module containerAppsEnvironment './core/host/container-apps-environment.bicep' = {
+  name: 'container-apps-environment'
+  scope: rg
+  params: {
+    name: '${abbrs.appManagedEnvironments}${resourceToken}'
+    location: location
+    tags: tags
+    logAnalyticsWorkspaceName: monitoring.outputs.logAnalyticsWorkspaceName
+  }
+}
+
 // Data outputs
 output AZURE_COSMOS_CONNECTION_STRING_KEY string = cosmos.outputs.connectionStringKey
 output AZURE_COSMOS_DATABASE_NAME string = cosmos.outputs.databaseName
@@ -401,9 +370,6 @@ output AZURE_COSMOS_DATABASE_NAME string = cosmos.outputs.databaseName
 output APPLICATIONINSIGHTS_CONNECTION_STRING string = monitoring.outputs.applicationInsightsConnectionString
 output APPLICATIONINSIGHTS_NAME string = monitoring.outputs.applicationInsightsName
 
-output AZURE_CONTAINER_ENVIRONMENT_NAME string = containerApps.outputs.environmentName
-output AZURE_CONTAINER_REGISTRY_ENDPOINT string = containerApps.outputs.registryLoginServer
-output AZURE_CONTAINER_REGISTRY_NAME string = containerApps.outputs.registryName
 output AZURE_KEY_VAULT_ENDPOINT string = keyVault.outputs.endpoint
 output AZURE_KEY_VAULT_NAME string = keyVault.outputs.name
 output AZURE_LOCATION string = location
@@ -417,28 +383,12 @@ output USE_APIM bool = useAPIM
 output SERVICE_API_ENDPOINTS array = useAPIM ? [ apimApi.outputs.SERVICE_API_URI, api.outputs.SERVICE_API_URI ] : [api.outputs.SERVICE_API_URI]
 
 output SERVICE_WEB_URI string = portal.outputs.SERVICE_WEB_URI
-output SERVICE_BLOG_URI string = blog.outputs.SERVICE_BLOG_URI
-output SERVICE_BLOG_NAME string = blog.outputs.SERVICE_BLOG_NAME
-
-output SERVICE_CMS_URI string = cms.outputs.SERVICE_CMS_URI
-output SERVICE_CMS_NAME string = cms.outputs.SERVICE_CMS_NAME
-output SERVICE_STRIPE_URI string = stripe.outputs.SERVICE_STRIPE_URI
-output SERVICE_STRIPE_NAME string = stripe.outputs.SERVICE_STRIPE_NAME
-
+output SERVICE_BLOG_URI string = webApps.outputs.blogWebAppUri
+output SERVICE_CMS_URI string = webApps.outputs.cmsWebAppUri
+output SERVICE_STRIPE_URI string = webApps.outputs.stripeWebAppUri
 output STORAGE_ACCOUNT_NAME string = storageAccount.outputs.name
 output STORAGE_CONTAINER_NAME string = storageContainerName
 output SERVICE_CMS_SERVER_HOST string = cmsDB.outputs.POSTGRES_DOMAIN_NAME
-
-output STRAPI_DATABASE_NAME string = cmsDatabaseName
-output STRAPI_DATABASE_USERNAME string = cmsDatabaseUser
-output STRAPI_DATABASE_HOST string = cmsDB.outputs.POSTGRES_DOMAIN_NAME
-output STRAPI_DATABASE_PORT string = cmsDatabasePort
-
-output CMS_DATABASE_SERVER_NAME string = cmsDB.outputs.POSTGRES_SERVER_NAME
-// We need this to manually restore the database
-output STRAPI_DATABASE_PASSWORD string = cmsDatabasePassword
-
-
 
 output SERVICE_WEBPUBSUB_NAME string = notifications.outputs.SERVICE_WEBPUBSUB_NAME
 output SERVICE_WEBPUBSUB_URI string = notificationsBackend.outputs.SERVICE_WEBPUBSUB_URI

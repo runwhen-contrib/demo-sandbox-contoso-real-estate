@@ -33,8 +33,8 @@ resource postgresServer 'Microsoft.DBforPostgreSQL/flexibleServers@2022-12-01' =
     }
   }
 
-  resource database 'databases' = [for name in databaseNames: {
-    name: name
+  resource database 'databases' = [for databaseName in databaseNames: {
+    name: databaseName
   }]
 
   resource firewall_all 'firewallRules' = if (allowAllIPsFirewall) {

@@ -20,12 +20,6 @@
     "applicationInsightsName": {
       "value": "${APPLICATIONINSIGHTS_NAME}"
     },
-    "containerAppsEnvironmentName": {
-      "value": "${AZURE_CONTAINER_ENVIRONMENT_NAME}"
-    },
-    "containerRegistryName": {
-      "value": "${AZURE_CONTAINER_REGISTRY_NAME}"
-    },
     "databaseHost": {
       "value": "${SERVICE_CMS_SERVER_HOST}"
     },
@@ -37,9 +31,6 @@
     },
     "databaseUsername": {
       "value": "${STRAPI_DATABASE_USERNAME}"
-    },
-    "cmsImageName": {
-      "value": "${SERVICE_CMS_IMAGE_NAME}"
     },
     "jwtSecret": {
       "value": "$(secretOrRandomPassword ${AZURE_KEY_VAULT_NAME} jwtSecret)"

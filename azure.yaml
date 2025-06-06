@@ -43,19 +43,19 @@ services:
 
   cms:
     project: packages/blog-cms
-    host: containerapp
+    host: appservice
     language: js
     module: app/cms
 
   blog:
     project: packages/blog
-    host: containerapp
+    host: appservice
     language: js
     module: app/blog
 
   stripe:
     project: packages/stripe
-    host: containerapp
+    host: appservice
     language: js
     docker:
       context: ../..

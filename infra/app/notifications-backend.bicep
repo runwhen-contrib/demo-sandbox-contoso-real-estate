@@ -5,8 +5,8 @@ param serviceName string = 'notifications'
 
 param applicationInsightsName string
 param notificationsServiceName string
-param containerAppsEnvironmentName string
 param containerRegistryName string
+param containerAppsEnvironmentName string
 param notificationsImageName string = ''
 param keyVaultName string
 
@@ -18,8 +18,8 @@ module app '../core/host/container-app.bicep' = {
     name: name
     location: location
     tags: union(tags, { 'azd-service-name': serviceName })
-    containerAppsEnvironmentName: containerAppsEnvironmentName
     containerRegistryName: containerRegistryName
+    containerAppsEnvironmentName: containerAppsEnvironmentName
     containerCpuCoreCount: '1.0'
     containerMemory: '2.0Gi'
     secrets: [
